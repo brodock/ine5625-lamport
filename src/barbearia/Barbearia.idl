@@ -1,0 +1,20 @@
+module barbearia {
+
+  struct Mensagem {
+     short id;
+     string rc;
+     short cont;
+  };
+
+  interface Cliente {
+    oneway void Concorrer(in Mensagem msg);
+    oneway void msgOK(in short id);
+  };
+
+  interface Barbeiro {
+    boolean cortarBarba();
+    boolean cortarCabelo();
+    boolean cortarBigode();
+  };
+
+};
