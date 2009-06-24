@@ -6,8 +6,10 @@ import org.omg.CosNaming.NamingContextExtHelper;
 import org.omg.PortableServer.*;
 
 /**
- *
- * @author llm
+ * Inicia um cliente especificado por -clienteN
+ * 
+ * @author Leandro Mendes
+ * @author Gabriel Mazetto
  */
 public class IniciaCliente {
 
@@ -29,6 +31,7 @@ public class IniciaCliente {
                 this.cliente_num = Integer.parseInt(param.substring(8));
                 error = false;
                 args[i] = null;
+                mensagem("instanciado!");
             }
 
         }
@@ -59,18 +62,23 @@ public class IniciaCliente {
             org.omg.CORBA.Object cliente_corba = poa.servant_to_reference(cliente_impl);
 
             nc.rebind(nc.to_name("Barbearia.cliente"+this.cliente_num.toString()), cliente_corba);
+
+            mensagem("carregado no ORB");
+
+            orb.run();
+            mensagem("finalizando...");
         } catch (Exception ex) {
             mensagem(true, ex.toString());
             ex.printStackTrace(System.out);
         }
     }
 
-    private void mensagem(String string) {
-        System.out.println(string);
+    private void mensagem(String texto) {
+        System.out.println("[Cliente"+this.cliente_num.toString()+"] "+texto);
     }
 
-    private void mensagem(boolean erro, String string) {
-        this.mensagem("ERRO: "+string);
+    private void mensagem(boolean erro, String texto) {
+        this.mensagem("ERRO: "+texto);
     }
 }
 
