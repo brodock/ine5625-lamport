@@ -7,8 +7,9 @@ import java.util.Vector;
 import org.omg.PortableServer.POA;
 
 /**
- *
- * @author llm
+ * Implementação do Cliente CORBA
+ * @author Leandro Mendes
+ * @author Gabriel Mazetto
  */
 public class ClienteImpl extends ClientePOA {
 
@@ -124,19 +125,23 @@ public class ClienteImpl extends ClientePOA {
 
             if (sequencia == 1) {
                 barbeiro.cortarCabelo();
-                System.out.println("Barbeiro cortou o cabelo do Cliente" + identificador);
+                mensagem("Barbeiro cortou o cabelo");
             } else if (sequencia == 2) {
                 barbeiro.cortarBarba();
-                System.out.println("Barbeiro cortou a barba do Cliente" + identificador);
+                mensagem("Barbeiro cortou a barba");
             } else if (sequencia == 3) {
                 barbeiro.cortarBigode();
-                System.out.println("Barbeiro cortou o bigode do Cliente" + identificador);
+                mensagem("Barbeiro cortou o bigode");
             }
 
         } catch (Exception exc) {
-            System.out.println("ERROR : " + exc);
+            mensagem("ERROR : " + exc);
             exc.printStackTrace(System.out);
         }
+    }
+
+    private void mensagem(String texto) {
+        System.out.println("[Cliente"+this.identificador+"] "+texto);
     }
 
     private class Gera extends Thread {
