@@ -64,6 +64,8 @@ public class IniciaCliente {
             nc.rebind(nc.to_name("Barbearia.cliente"+this.cliente_num.toString()), cliente_corba);
 
             mensagem("carregado no ORB");
+            mensagem("Iniciando threads do cliente");
+            cliente_impl.inicia();
 
             orb.run();
             mensagem("finalizando...");
@@ -74,7 +76,11 @@ public class IniciaCliente {
     }
 
     private void mensagem(String texto) {
+        if (this.cliente_num == null) {
+            this.cliente_num = 0;
+        }
         System.out.println("[Cliente"+this.cliente_num.toString()+"] "+texto);
+
     }
 
     private void mensagem(boolean erro, String texto) {

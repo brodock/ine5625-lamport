@@ -1,5 +1,7 @@
 package barbearia;
 
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.omg.CORBA.ORB;
 import org.omg.CosNaming.NamingContextExt;
 import org.omg.CosNaming.NamingContextExtHelper;
@@ -16,11 +18,12 @@ public class ClienteImpl extends ClientePOA {
     private Integer identificador;
     private short contador_geral = 0;
     private short contador_atual = contador_geral;
-    private Vector oks = new Vector();
+    private Vector<Short> oks = new Vector<Short>();
     private Vector<Mensagem> fila = new Vector<Mensagem>();
     private Vector veri_ok = new Vector();
     private boolean usando = false;
     private boolean tentando = false;
+    private Integer sequencia_barbeiro = 1;
     //
     // CORBA
     //
@@ -33,7 +36,6 @@ public class ClienteImpl extends ClientePOA {
         this.orb = orb;
         this.poa = poa;
         this.namingcontext = nc;
-
     }
 
     /**
@@ -75,7 +77,6 @@ public class ClienteImpl extends ClientePOA {
         if (msg.cont > contador_geral) {
             contador_geral = msg.cont;
         }
-
     }
 
     /**
@@ -84,7 +85,7 @@ public class ClienteImpl extends ClientePOA {
      */
     public void enviaOK(Mensagem msg) {
         try {
-            Cliente clientex = ClienteHelper.narrow(namingcontext.resolve_str("cliente" + msg.id));
+            Cliente clientex = ClienteHelper.narrow(namingcontext.resolve_str("Barbearia.cliente" + msg.id));
             clientex.msgOK(identificador.shortValue());
         } catch (Exception exc) {
             System.out.println("ERROR : " + exc);
@@ -93,8 +94,8 @@ public class ClienteImpl extends ClientePOA {
     }
 
     public void inicia() {
-        Gera gera = new Gera();
-        gera.start();
+        Concorrer concorrer = new Concorrer();
+        concorrer.start();
     }
 
     /**
@@ -103,10 +104,7 @@ public class ClienteImpl extends ClientePOA {
      */
     public void acesso(int sequencia) {
         try {
-            org.omg.CORBA.Object obj = orb.resolve_initial_references("NameService");
-            NamingContextExt namingcontextext = NamingContextExtHelper.narrow(obj);
-            String s = "barbeiro";
-            Barbeiro barbeiro = BarbeiroHelper.narrow(namingcontextext.resolve_str(s));
+            Barbeiro barbeiro = BarbeiroHelper.narrow(namingcontext.resolve_str("Barbearia.barbeiro"));
 
             if (sequencia == 1) {
                 barbeiro.cortarCabelo();
@@ -129,6 +127,24 @@ public class ClienteImpl extends ClientePOA {
 
         if (tentando) {
             // Vamos verificar se já possui todos os oks
+            if (oks.size() >= Constantes.NUMERO_CLIENTES-1) {
+                boolean verifica_ok = true;
+                for (Integer i = 1; i <= Constantes.NUMERO_CLIENTES; i++) {
+                    if (i != identificador) {
+                        if (!oks.contains(i.shortValue())) {
+                            verifica_ok = false; // Nunca deve chegar aqui...
+                            mensagem("ERRO: Temos mais OKS do que deveria e algum deles nao foi encontrado!");
+                        }
+                    }
+                }
+
+                if (verifica_ok) {
+                    this.usando = true;
+                    acesso(this.sequencia_barbeiro);
+                    this.usando = false;
+                    this.sequencia_barbeiro++;
+                }
+            }
         } else {
             // Vamos enviar a mensagem para concorrer ao recurso
             this.tentando = true;
@@ -142,17 +158,28 @@ public class ClienteImpl extends ClientePOA {
     private void enviaConcorrer() {
 
         this.contador_geral++;
-        Mensagem msg = new Mensagem(identificador.shortValue(), "barbeiro", this.contador_geral);
+        this.contador_atual = this.contador_geral;
+        Mensagem msg = new Mensagem(identificador.shortValue(), "barbeiro", this.contador_atual);
 
         // Dispara a mensagem para todos clientes (exceto o próprio)
-        for (int i = 1; i < 6; i++) {
+        for (int i = 1; i <= Constantes.NUMERO_CLIENTES; i++) {
             if (i != identificador) {
-                try {
-                    Cliente clientex = ClienteHelper.narrow(namingcontext.resolve_str("cliente" + i));
-                    clientex.Concorrer(msg);
-                } catch (Exception exc) {
-                    System.out.println("ERROR : " + exc);
-                    exc.printStackTrace(System.out);
+                boolean error = true;
+                while (error) {
+                    try {
+                        Cliente clientex = ClienteHelper.narrow(namingcontext.resolve_str("Barbearia.cliente" + i));
+                        clientex.Concorrer(msg);
+                        error = false;
+                    } catch (Exception ex) {
+                        mensagem("nao encontrei o cliente "+i+"... AGUARDANDO 5s");
+
+                        try {
+                            Thread.sleep(5000);
+                        } catch (InterruptedException ex1) {
+                            Logger.getLogger(ClienteImpl.class.getName()).log(Level.SEVERE, null, ex1);
+                        }
+                        
+                    }
                 }
             }
         }
@@ -170,6 +197,7 @@ public class ClienteImpl extends ClientePOA {
             while (i < 100) {
                 tentaAcessarBarbeiro();
             }
+            mensagem("Acabaram minhas tentativas...");
         }
     }
 

@@ -47,7 +47,7 @@ public class IniciaBarbeiro {
             org.omg.CORBA.Object barbeiro_corba = poa.servant_to_reference(barbeiroimpl);
 
             // Envia o objeto para o servidor de nomes e faz um rebind
-            nc.rebind(nc.to_name("Barbeiro.server"), barbeiro_corba);
+            nc.rebind(nc.to_name("Barbearia.barbeiro"), barbeiro_corba);
 
             Mensagem("aguardando requisicoes ...");
 
