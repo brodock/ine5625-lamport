@@ -87,6 +87,7 @@ public class ClienteImpl extends ClientePOA {
         try {
             Cliente clientex = ClienteHelper.narrow(namingcontext.resolve_str("Barbearia.cliente" + msg.id));
             clientex.msgOK(identificador.shortValue());
+            mensagem("Enviei mensagem de OK para Cliente " + msg.id);
         } catch (Exception exc) {
             System.out.println("ERROR : " + exc);
             exc.printStackTrace(System.out);
@@ -127,22 +128,26 @@ public class ClienteImpl extends ClientePOA {
 
         if (tentando) {
             // Vamos verificar se já possui todos os oks
-            if (oks.size() >= Constantes.NUMERO_CLIENTES-1) {
+            if (oks.size() >= (Constantes.NUMERO_CLIENTES - 1)) {
                 boolean verifica_ok = true;
                 for (Integer i = 1; i <= Constantes.NUMERO_CLIENTES; i++) {
                     if (i != identificador) {
                         if (!oks.contains(i.shortValue())) {
                             verifica_ok = false; // Nunca deve chegar aqui...
-                            mensagem("ERRO: Temos mais OKS do que deveria e algum deles nao foi encontrado!");
+                            mensagem("ERRO: Temos mais OKS do que deveria e o do cliente " + i + " não foi encontrado! (" + oks.toString() + ")");
                         }
                     }
                 }
 
                 if (verifica_ok) {
+                    this.tentando = false;
                     this.usando = true;
                     acesso(this.sequencia_barbeiro);
                     this.usando = false;
                     this.sequencia_barbeiro++;
+                    this.oks.clear();
+                    this.contador_atual = this.contador_geral;
+                    processaFila();
                 }
             }
         } else {
@@ -171,14 +176,14 @@ public class ClienteImpl extends ClientePOA {
                         clientex.Concorrer(msg);
                         error = false;
                     } catch (Exception ex) {
-                        mensagem("nao encontrei o cliente "+i+"... AGUARDANDO 5s");
+                        mensagem("nao encontrei o cliente " + i + "... AGUARDANDO 5s");
 
                         try {
                             Thread.sleep(5000);
                         } catch (InterruptedException ex1) {
                             Logger.getLogger(ClienteImpl.class.getName()).log(Level.SEVERE, null, ex1);
                         }
-                        
+
                     }
                 }
             }
@@ -189,79 +194,31 @@ public class ClienteImpl extends ClientePOA {
         System.out.println("[Cliente" + this.identificador + "] " + texto);
     }
 
+    private void processaFila() {
+        mensagem("Processando fila (" + fila.toString() + ")");
+
+        int size = fila.size();
+        for (int i = 0; i < size; i++) {
+            enviaOK(fila.elementAt(0));
+            fila.remove(0); // pega o primeiro elemento da fila e tras o segundo pro lugar do primeiro
+        }
+    }
+
     private class Concorrer extends Thread {
 
         @Override
         public void run() {
             int i = 0;
-            while (i < 100) {
+            while (i < 100 && sequencia_barbeiro <= 3) {
                 tentaAcessarBarbeiro();
-            }
-            mensagem("Acabaram minhas tentativas...");
-        }
-    }
 
-    private class Gera extends Thread {
-
-        @Override
-        public void run() {
-            for (int i = 0; i < 100; i++) {
-
-                enviaConcorrer();
-
-
-                for (int j = 1; j < 4; j++) {
-                    enviaConcorrer();
-                    ////////////////
-                    int cont_veri = 0;
-                    boolean veri_check = false;
-                    boolean veri_o = false;
-                    while (veri_check == false) {
-                        for (int x = 0; x < oks.size(); x++) {
-                            if (cont_veri == 4) {
-                                veri_check = true;
-                                veri_ok.clear();
-                                break;
-                            }
-                            if (veri_ok.size() == 0) {
-                                veri_ok.add(oks.elementAt(x));
-                                oks.remove(x);
-                                ++cont_veri;
-                            } else {
-                                veri_o = false;
-                                for (int z = 0; z < veri_ok.size(); z++) {
-                                    if (!oks.elementAt(x).equals(veri_ok.elementAt(z))) {
-                                        veri_o = true;
-                                    }
-                                }
-                                if (veri_o == true) {
-                                    veri_ok.add(oks.elementAt(x));
-                                    oks.remove(x);
-                                    ++cont_veri;
-                                }
-                            }
-                        }
-                        if (cont_veri == 4) {
-                            veri_check = true;
-                            veri_ok.clear();
-                        }
-                    }
-                    usando = true;
-                    acesso(j);
-                    usando = false;
-                    for (int m = 0; m < fila.size(); m++) {
-                        try {
-                            Cliente clientex = ClienteHelper.narrow(namingcontext.resolve_str("cliente" + fila.elementAt(m).toString()));
-                            clientex.msgOK(identificador.shortValue());
-                            fila.remove(m);
-                        } catch (Exception exc) {
-                            System.out.println("ERROR : " + exc);
-                            exc.printStackTrace(System.out);
-                        }
-                    }
-                    ////////////////
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ex) {
+                    Logger.getLogger(ClienteImpl.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
+            mensagem("Acabaram minhas tentativas...");
         }
     }
 }
