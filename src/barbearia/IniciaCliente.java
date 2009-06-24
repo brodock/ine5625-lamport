@@ -9,16 +9,16 @@ import org.omg.PortableServer.*;
  *
  * @author llm
  */
-public class Clientes {
+public class IniciaCliente {
 
     private Integer cliente_num;
 
     public static void main(String[] args) {
-        Clientes clientes = new Clientes(args);
+        IniciaCliente clientes = new IniciaCliente(args);
         System.exit(0);
     }
 
-    public Clientes(String[] args) {
+    public IniciaCliente(String[] args) {
 
         boolean error = true;
 
@@ -54,24 +54,23 @@ public class Clientes {
             // Essa tarefa é realizada pelo ORB (resolve_initial_references)
             NamingContextExt nc = NamingContextExtHelper.narrow(orb.resolve_initial_references("NameService"));
 
-            // Obtém o objeto CORBA (genérico) do servidor HelloWorld
-            // É o servidor de nomes que fornece essa referência (resolve)
-            org.omg.CORBA.Object o = nc.resolve(nc.to_name("ServicoEventos.corba"));
-
-
             ClienteImpl cliente_impl = new ClienteImpl(this.cliente_num, orb, poa, nc);
 
             org.omg.CORBA.Object cliente_corba = poa.servant_to_reference(cliente_impl);
 
-            nc.rebind(nc.to_name("cliente1"), cliente_corba);
+            nc.rebind(nc.to_name("Barbearia.cliente"+this.cliente_num.toString()), cliente_corba);
         } catch (Exception ex) {
-            System.out.println("ERROR : " + ex);
+            mensagem(true, ex.toString());
             ex.printStackTrace(System.out);
         }
     }
 
     private void mensagem(String string) {
         System.out.println(string);
+    }
+
+    private void mensagem(boolean erro, String string) {
+        this.mensagem("ERRO: "+string);
     }
 }
 
