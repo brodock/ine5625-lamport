@@ -1,71 +1,107 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
-
 package barbearia;
 
 import org.omg.CORBA.ORB;
 import org.omg.CosNaming.NamingContextExt;
 import org.omg.CosNaming.NamingContextExtHelper;
 import java.util.Vector;
+import org.omg.PortableServer.POA;
 
 /**
  *
  * @author llm
  */
-
 public class ClienteImpl extends ClientePOA {
-    
-    private short numero;
-    private String[] args = new String[4];
-    private ORB orb = null;
-    private NamingContextExt namingcontext = null;
-    private org.omg.CORBA.Object objx = null;
-    private String sx = "";
-    private Cliente clientex = null;
+
+    private Integer identificador;
     private short cont = 0;
     private Vector oks = new Vector();
-    private Vector log = new Vector();
+    private Vector<Mensagem> fila = new Vector<Mensagem>();
     private Vector veri_ok = new Vector();
     private boolean usando = false;
+    //
+    // CORBA
+    //
+    private ORB orb = null;
+    private POA poa = null;
+    private NamingContextExt namingcontext = null;
 
-    public ClienteImpl(short numero){
-        this.numero = numero;
-        args[0] = "-ORBInitialPort";
-        args[1] = "2500";
-        args[2] = "-ORBInitialHost";
-        args[3] = "150.162.65.126";
-        orb = ORB.init(args, ((java.util.Properties) (null)));
+    public ClienteImpl(Integer numero, ORB orb, POA poa, NamingContextExt nc) {
+        this.identificador = numero;
+        this.orb = orb;
+        this.poa = poa;
+        this.namingcontext = nc;
+
     }
-   
-    public void msgOK(short id){oks.add(id);}
 
-    public void Concorrer(Mensagem msg){
-        boolean veri = false;
-        if(usando == true){
-            log.add(msg.id);
-        }
-        else{
-            if(msg.cont > cont){veri = true;}
-            if(msg.cont == cont){
-                if(msg.id < numero){veri = true;}
-                else{log.add(msg.id);}              
+    /**
+     * Rececpção de mensagens de OK via CORBA
+     * @param id Número do cliente que enviou o OK
+     */
+    public void msgOK(short id) {
+        oks.add(id);
+    }
+
+    /**
+     * Recepção de mensagem para Concorrer, via CORBA
+     * @param msg Mensagem pedindo acesso a área de exclusão mútua
+     */
+    public void Concorrer(Mensagem msg) {
+
+        //
+        // LAMPORT
+        //
+
+        if (usando) {
+            fila.add(msg);
+        } else {
+            if (msg.cont < cont) { // Se o contador for menor que o atual, ele tem prioridade
+                enviaOK(msg);
+            } else if (msg.cont == cont) { // Se o contador for igual o atual, quem tiver o menor id tem prioridade
+                if (msg.id < this.identificador) {
+                    enviaOK(msg);
+                } else {
+                    fila.add(msg);
+                }
+            } else if (msg.cont > cont) {
+                this.cont = msg.cont;
+                fila.add(msg);
             }
-            if(msg.cont < cont){log.add(msg.id);}
         }
-        if(msg.cont > cont){cont = msg.cont;}
-        if (veri == true) {
-            try {
-                orb = ORB.init(args, ((java.util.Properties) (null)));
-                objx = orb.resolve_initial_references("NameService");
-                namingcontext = NamingContextExtHelper.narrow(objx);
-                sx = "cliente" + msg.id;
-                clientex = ClienteHelper.narrow(namingcontext.resolve_str(sx));
-                clientex.msgOK(numero);
-            } catch (Exception exc) {
-                System.out.println("ERROR : " + exc);
-                exc.printStackTrace(System.out);
+
+    }
+
+    /**
+     * Envia uma mensagem de OK para o remetente da mensagem passada por parâmetro
+     * @param msg Mensagem que vai receber um OK
+     */
+    public void enviaOK(Mensagem msg) {
+        try {
+            Cliente clientex = ClienteHelper.narrow(namingcontext.resolve_str("cliente" + msg.id));
+            clientex.msgOK(identificador.shortValue());
+        } catch (Exception exc) {
+            System.out.println("ERROR : " + exc);
+            exc.printStackTrace(System.out);
+        }
+    }
+
+    /**
+     * Dispara mensagens para concorrer a um recurso
+     */
+    public void enviaConcorrer() {
+
+        this.cont++;
+        Mensagem msg = new Mensagem(identificador.shortValue(), "barbeiro", this.cont);
+
+        // Dispara a mensagem para todos clientes (exceto o próprio)
+        for (int i = 1; i < 6; i++) {
+            if (i != identificador) {
+                try {
+                    Cliente clientex = ClienteHelper.narrow(namingcontext.resolve_str("cliente" + i));
+                    clientex.Concorrer(msg);
+                } catch (Exception exc) {
+                    System.out.println("ERROR : " + exc);
+                    exc.printStackTrace(System.out);
+                }
             }
         }
     }
@@ -75,51 +111,41 @@ public class ClienteImpl extends ClientePOA {
         gera.start();
     }
 
-    public void acesso(int num) {
+    /**
+     *
+     * @param sequencia
+     */
+    public void acesso(int sequencia) {
         try {
             org.omg.CORBA.Object obj = orb.resolve_initial_references("NameService");
             NamingContextExt namingcontextext = NamingContextExtHelper.narrow(obj);
             String s = "barbeiro";
             Barbeiro barbeiro = BarbeiroHelper.narrow(namingcontextext.resolve_str(s));
-            if (num == 1) {
+
+            if (sequencia == 1) {
                 barbeiro.cortarCabelo();
-                System.out.println("Barbeiro cortou o cabelo do Cliente" + numero);
-            }
-            if (num == 2) {
+                System.out.println("Barbeiro cortou o cabelo do Cliente" + identificador);
+            } else if (sequencia == 2) {
                 barbeiro.cortarBarba();
-                System.out.println("Barbeiro cortou a barba do Cliente" + numero);
-            }
-            if (num == 3) {
+                System.out.println("Barbeiro cortou a barba do Cliente" + identificador);
+            } else if (sequencia == 3) {
                 barbeiro.cortarBigode();
-                System.out.println("Barbeiro cortou o bigode do Cliente" + numero);
+                System.out.println("Barbeiro cortou o bigode do Cliente" + identificador);
             }
+
         } catch (Exception exc) {
             System.out.println("ERROR : " + exc);
             exc.printStackTrace(System.out);
         }
     }
 
-    public class Gera extends Thread {
+    private class Gera extends Thread {
+
         @Override
         public void run() {
             for (int i = 0; i < 100; i++) {
                 for (int j = 1; j < 4; j++) {
-                    cont++;
-                    Mensagem msg = new Mensagem(numero, "barbeiro", cont);
-                    for (int l = 1; l < 6; l++) {
-                        if (l != numero) {
-                            try {
-                                objx = orb.resolve_initial_references("NameService");
-                                namingcontext = NamingContextExtHelper.narrow(objx);
-                                sx = "cliente" + l;
-                                clientex = ClienteHelper.narrow(namingcontext.resolve_str(sx));
-                                clientex.Concorrer(msg);
-                            } catch (Exception exc) {
-                                System.out.println("ERROR : " + exc);
-                                exc.printStackTrace(System.out);
-                            }
-                        } else {continue;}
-                    }
+                    enviaConcorrer();
                     ////////////////
                     int cont_veri = 0;
                     boolean veri_check = false;
@@ -157,15 +183,11 @@ public class ClienteImpl extends ClientePOA {
                     usando = true;
                     acesso(j);
                     usando = false;
-                    for (int m = 0; m < log.size(); m++) {
+                    for (int m = 0; m < fila.size(); m++) {
                         try {
-                            orb = ORB.init(args, ((java.util.Properties) (null)));
-                            objx = orb.resolve_initial_references("NameService");
-                            namingcontext = NamingContextExtHelper.narrow(objx);
-                            sx = "cliente" + log.elementAt(m).toString();
-                            clientex = ClienteHelper.narrow(namingcontext.resolve_str(sx));
-                            clientex.msgOK(numero);
-                            log.remove(m);
+                            Cliente clientex = ClienteHelper.narrow(namingcontext.resolve_str("cliente" + fila.elementAt(m).toString()));
+                            clientex.msgOK(identificador.shortValue());
+                            fila.remove(m);
                         } catch (Exception exc) {
                             System.out.println("ERROR : " + exc);
                             exc.printStackTrace(System.out);
@@ -176,5 +198,4 @@ public class ClienteImpl extends ClientePOA {
             }
         }
     }
-
 }
