@@ -14,11 +14,13 @@ import org.omg.PortableServer.POA;
 public class ClienteImpl extends ClientePOA {
 
     private Integer identificador;
-    private short cont = 0;
+    private short contador_geral = 0;
+    private short contador_atual = contador_geral;
     private Vector oks = new Vector();
     private Vector<Mensagem> fila = new Vector<Mensagem>();
     private Vector veri_ok = new Vector();
     private boolean usando = false;
+    private boolean tentando = false;
     //
     // CORBA
     //
@@ -55,18 +57,23 @@ public class ClienteImpl extends ClientePOA {
         if (usando) {
             fila.add(msg);
         } else {
-            if (msg.cont < cont) { // Se o contador for menor que o atual, ele tem prioridade
+            // Vamos processar a mensagem...
+            if (msg.cont < contador_atual) { // Se o contador for menor que o atual, ele tem prioridade
                 enviaOK(msg);
-            } else if (msg.cont == cont) { // Se o contador for igual o atual, quem tiver o menor id tem prioridade
+            } else if (msg.cont == contador_atual) { // Se o contador for igual o atual, quem tiver o menor id tem prioridade
                 if (msg.id < this.identificador) {
                     enviaOK(msg);
                 } else {
                     fila.add(msg);
                 }
-            } else if (msg.cont > cont) {
-                this.cont = msg.cont;
+            } else { // Se o contador for maior que o atual, vamos por na fila
                 fila.add(msg);
             }
+        }
+
+        // Se o contador da mensagem recebida for maior, incrementa nosso contador geral
+        if (msg.cont > contador_geral) {
+            contador_geral = msg.cont;
         }
 
     }
@@ -82,28 +89,6 @@ public class ClienteImpl extends ClientePOA {
         } catch (Exception exc) {
             System.out.println("ERROR : " + exc);
             exc.printStackTrace(System.out);
-        }
-    }
-
-    /**
-     * Dispara mensagens para concorrer a um recurso
-     */
-    public void enviaConcorrer() {
-
-        this.cont++;
-        Mensagem msg = new Mensagem(identificador.shortValue(), "barbeiro", this.cont);
-
-        // Dispara a mensagem para todos clientes (exceto o próprio)
-        for (int i = 1; i < 6; i++) {
-            if (i != identificador) {
-                try {
-                    Cliente clientex = ClienteHelper.narrow(namingcontext.resolve_str("cliente" + i));
-                    clientex.Concorrer(msg);
-                } catch (Exception exc) {
-                    System.out.println("ERROR : " + exc);
-                    exc.printStackTrace(System.out);
-                }
-            }
         }
     }
 
@@ -140,8 +125,52 @@ public class ClienteImpl extends ClientePOA {
         }
     }
 
+    public void tentaAcessarBarbeiro() {
+
+        if (tentando) {
+            // Vamos verificar se já possui todos os oks
+        } else {
+            // Vamos enviar a mensagem para concorrer ao recurso
+            this.tentando = true;
+            enviaConcorrer();
+        }
+    }
+
+    /**
+     * Dispara mensagens para concorrer a um recurso
+     */
+    private void enviaConcorrer() {
+
+        this.contador_geral++;
+        Mensagem msg = new Mensagem(identificador.shortValue(), "barbeiro", this.contador_geral);
+
+        // Dispara a mensagem para todos clientes (exceto o próprio)
+        for (int i = 1; i < 6; i++) {
+            if (i != identificador) {
+                try {
+                    Cliente clientex = ClienteHelper.narrow(namingcontext.resolve_str("cliente" + i));
+                    clientex.Concorrer(msg);
+                } catch (Exception exc) {
+                    System.out.println("ERROR : " + exc);
+                    exc.printStackTrace(System.out);
+                }
+            }
+        }
+    }
+
     private void mensagem(String texto) {
-        System.out.println("[Cliente"+this.identificador+"] "+texto);
+        System.out.println("[Cliente" + this.identificador + "] " + texto);
+    }
+
+    private class Concorrer extends Thread {
+
+        @Override
+        public void run() {
+            int i = 0;
+            while (i < 100) {
+                tentaAcessarBarbeiro();
+            }
+        }
     }
 
     private class Gera extends Thread {
@@ -149,6 +178,10 @@ public class ClienteImpl extends ClientePOA {
         @Override
         public void run() {
             for (int i = 0; i < 100; i++) {
+
+                enviaConcorrer();
+
+
                 for (int j = 1; j < 4; j++) {
                     enviaConcorrer();
                     ////////////////
