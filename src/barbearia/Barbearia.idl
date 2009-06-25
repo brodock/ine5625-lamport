@@ -12,9 +12,9 @@ module barbearia {
   };
 
   interface Barbeiro {
-    boolean cortarBarba();
-    boolean cortarCabelo();
-    boolean cortarBigode();
+    boolean cortarBarba(in short id);
+    boolean cortarCabelo(in short id);
+    boolean cortarBigode(in short id);
   };
 
 };

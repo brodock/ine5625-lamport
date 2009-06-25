@@ -1,42 +1,49 @@
+/*
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+
 package barbearia;
 
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 /**
- * Implementaçãod o Barbeiro - CORBA
- * @author Leandro Mendes
- * @author Gabriel Mazetto
+ *
+ * @author llm
  */
+
 public class BarbeiroImpl extends BarbeiroPOA {
 
-    public boolean cortarBarba() {
+    public boolean cortarBarba(short id){
         boolean veri = false;
+        System.out.println("Barbeiro cortou uma barba do cliente" + id + " !");
         try {
-            Thread.sleep(4000);
+            Thread.sleep(Constantes.CORTAR_BARBA);
         } catch (InterruptedException ex) {
-            ex.printStackTrace(System.out);
+            Logger.getLogger(BarbeiroImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
-        System.out.println("Barbeiro cortou uma barba!");
+        return veri;
+    }
+    public boolean cortarCabelo(short id){
+        boolean veri = false;
+        System.out.println("Barbeiro cortou um cabelo do cliente" + id + " !");
+                try {
+            Thread.sleep(Constantes.CORTAR_CABELO);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(BarbeiroImpl.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return veri;
+    }
+    public boolean cortarBigode(short id){
+        boolean veri = false;
+        System.out.println("Barbeiro cortou um bigode do cliente" + id + " !");
+                try {
+            Thread.sleep(Constantes.CORTAR_BIGODE);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(BarbeiroImpl.class.getName()).log(Level.SEVERE, null, ex);
+        }
         return veri;
     }
 
-    public boolean cortarCabelo() {
-        boolean veri = false;
-        try {
-            Thread.sleep(3000);
-        } catch (InterruptedException ex) {
-            ex.printStackTrace(System.out);
-        }
-        System.out.println("Barbeiro cortou um cabelo!");
-        return veri;
-    }
-
-    public boolean cortarBigode() {
-        boolean veri = false;
-        try {
-            Thread.sleep(5000);
-        } catch (InterruptedException ex) {
-            ex.printStackTrace(System.out);
-        }
-        System.out.println("Barbeiro cortou um bigode!");
-        return veri;
-    }
 }

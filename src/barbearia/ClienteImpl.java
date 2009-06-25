@@ -1,10 +1,10 @@
 package barbearia;
 
+import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.omg.CORBA.ORB;
 import org.omg.CosNaming.NamingContextExt;
-import org.omg.CosNaming.NamingContextExtHelper;
 import java.util.Vector;
 import org.omg.PortableServer.POA;
 
@@ -16,8 +16,7 @@ import org.omg.PortableServer.POA;
 public class ClienteImpl extends ClientePOA {
 
     private Integer identificador;
-    private short contador_geral = 0;
-    private short contador_atual = contador_geral;
+    private short contador = 0;
     private Vector<Short> oks = new Vector<Short>();
     private Vector<Mensagem> fila = new Vector<Mensagem>();
     private Vector veri_ok = new Vector();
@@ -43,6 +42,7 @@ public class ClienteImpl extends ClientePOA {
      * @param id Número do cliente que enviou o OK
      */
     public void msgOK(short id) {
+        mensagem("Recebi OK de: "+id);
         oks.add(id);
     }
 
@@ -60,9 +60,9 @@ public class ClienteImpl extends ClientePOA {
             fila.add(msg);
         } else {
             // Vamos processar a mensagem...
-            if (msg.cont < contador_atual) { // Se o contador for menor que o atual, ele tem prioridade
+            if (msg.cont < contador) { // Se o contador da mensagem for menor que o atual, ele tem prioridade
                 enviaOK(msg);
-            } else if (msg.cont == contador_atual) { // Se o contador for igual o atual, quem tiver o menor id tem prioridade
+            } else if (msg.cont == contador) { // Se o contador for igual o atual, quem tiver o menor id tem prioridade
                 if (msg.id < this.identificador) {
                     enviaOK(msg);
                 } else {
@@ -74,8 +74,8 @@ public class ClienteImpl extends ClientePOA {
         }
 
         // Se o contador da mensagem recebida for maior, incrementa nosso contador geral
-        if (msg.cont > contador_geral) {
-            contador_geral = msg.cont;
+        if (msg.cont > contador) {
+            contador = msg.cont;
         }
     }
 
@@ -95,8 +95,10 @@ public class ClienteImpl extends ClientePOA {
     }
 
     public void inicia() {
-        Concorrer concorrer = new Concorrer();
-        concorrer.start();
+        Concorrer concorrer_thread = new Concorrer();
+        concorrer_thread.start();
+//        Fila fila_thread = new Fila();
+//        fila_thread.start();
     }
 
     /**
@@ -108,13 +110,13 @@ public class ClienteImpl extends ClientePOA {
             Barbeiro barbeiro = BarbeiroHelper.narrow(namingcontext.resolve_str("Barbearia.barbeiro"));
 
             if (sequencia == 1) {
-                barbeiro.cortarCabelo();
+                barbeiro.cortarCabelo(this.identificador.shortValue());
                 mensagem("Barbeiro cortou o cabelo");
             } else if (sequencia == 2) {
-                barbeiro.cortarBarba();
+                barbeiro.cortarBarba(this.identificador.shortValue());
                 mensagem("Barbeiro cortou a barba");
             } else if (sequencia == 3) {
-                barbeiro.cortarBigode();
+                barbeiro.cortarBigode(this.identificador.shortValue());
                 mensagem("Barbeiro cortou o bigode");
             }
 
@@ -130,6 +132,7 @@ public class ClienteImpl extends ClientePOA {
             // Vamos verificar se já possui todos os oks
             if (oks.size() >= (Constantes.NUMERO_CLIENTES - 1)) {
                 boolean verifica_ok = true;
+                
                 for (Integer i = 1; i <= Constantes.NUMERO_CLIENTES; i++) {
                     if (i != identificador) {
                         if (!oks.contains(i.shortValue())) {
@@ -146,7 +149,6 @@ public class ClienteImpl extends ClientePOA {
                     this.usando = false;
                     this.sequencia_barbeiro++;
                     this.oks.clear();
-                    this.contador_atual = this.contador_geral;
                     processaFila();
                 }
             }
@@ -162,9 +164,9 @@ public class ClienteImpl extends ClientePOA {
      */
     private void enviaConcorrer() {
 
-        this.contador_geral++;
-        this.contador_atual = this.contador_geral;
-        Mensagem msg = new Mensagem(identificador.shortValue(), "barbeiro", this.contador_atual);
+        this.contador++;
+
+        Mensagem msg = new Mensagem(identificador.shortValue(), "barbeiro", this.contador);
 
         // Dispara a mensagem para todos clientes (exceto o próprio)
         for (int i = 1; i <= Constantes.NUMERO_CLIENTES; i++) {
@@ -195,13 +197,34 @@ public class ClienteImpl extends ClientePOA {
     }
 
     private void processaFila() {
+        mensagem("----------------------- INICIO DA FILA ---------------------");
         mensagem("Processando fila (" + fila.toString() + ")");
 
-        int size = fila.size();
-        for (int i = 0; i < size; i++) {
-            enviaOK(fila.elementAt(0));
-            fila.remove(0); // pega o primeiro elemento da fila e tras o segundo pro lugar do primeiro
+        for (Iterator<Mensagem> it = fila.iterator(); it.hasNext();) {
+            Mensagem msg = it.next();
+
+            if (msg.cont < contador) {
+                enviaOK(msg);
+                it.remove();
+            } else if (msg.cont == contador) {
+
+                if (msg.id < identificador) {
+                    enviaOK(msg);
+                    it.remove();
+                } else if (!usando && !tentando) {
+                    enviaOK(msg);
+                    it.remove();
+                } else {
+                    mensagem("Nao enviei: " + msg.cont + "(" + msg.id + ")");
+                }
+
+            } else {
+                mensagem("Nao enviei: " + msg.cont + "(" + msg.id + ")");
+            }
+
         }
+
+        mensagem("----------------------- FINAL DA FILA ----------------------");
     }
 
     private class Concorrer extends Thread {
@@ -211,6 +234,7 @@ public class ClienteImpl extends ClientePOA {
             int i = 0;
             while (i < 100 && sequencia_barbeiro <= 3) {
                 tentaAcessarBarbeiro();
+                i++;
 
                 try {
                     Thread.sleep(1000);
@@ -219,6 +243,21 @@ public class ClienteImpl extends ClientePOA {
                 }
             }
             mensagem("Acabaram minhas tentativas...");
+        }
+    }
+
+    private class Fila extends Thread {
+
+        @Override
+        public void run() {
+            while (true) {
+            processaFila();
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ex) {
+                    Logger.getLogger(ClienteImpl.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
         }
     }
 }
